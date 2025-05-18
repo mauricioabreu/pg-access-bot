@@ -3,18 +3,24 @@ package access
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"pg-access-bot/internal/config"
 	"pg-access-bot/internal/handler/grant"
+	"strings"
 	"time"
+
+	"github.com/go-playground/validator/v10"
 )
 
+var validate = validator.New()
+
 type AccessRequest struct {
-	UserIdentification string   `json:"user_identification"`
-	Tables             []string `json:"tables"`
-	Actions            []string `json:"actions"`
-	ValidFor           int      `json:"valid_for"`
+	UserIdentification string   `json:"user_identification" validate:"required"`
+	Tables             []string `json:"tables" validate:"required,min=1,max=3,dive,required"`
+	Actions            []string `json:"actions" validate:"required,min=1,max=4,dive,oneof=SELECT INSERT UPDATE DELETE"`
+	ValidFor           int      `json:"valid_for" validate:"required,min=10,max=120"` // in minutes
 }
 
 type AccessResponse struct {
@@ -27,6 +33,15 @@ func RequestAccess(w http.ResponseWriter, r *http.Request) {
 	var req AccessRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := validate.Struct(req); err != nil {
+		var errs []string
+		for _, e := range err.(validator.ValidationErrors) {
+			errs = append(errs, fmt.Sprintf("field '%s' failed on the '%s' rule", e.Field(), e.Tag()))
+		}
+		http.Error(w, strings.Join(errs, ", "), http.StatusBadRequest)
 		return
 	}
 
