@@ -3,6 +3,7 @@ package access
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"pg-access-bot/internal/config"
 	"pg-access-bot/internal/handler/grant"
@@ -12,7 +13,7 @@ import (
 type AccessRequest struct {
 	UserIdentification string   `json:"user_identification"`
 	Tables             []string `json:"tables"`
-	Permissions        []string `json:"permissions"`
+	Actions            []string `json:"actions"`
 	ValidFor           int      `json:"valid_for"`
 }
 
@@ -32,14 +33,16 @@ func RequestAccess(w http.ResponseWriter, r *http.Request) {
 	cfg := config.Load()
 	dbConn, err := sql.Open("postgres", cfg.DBUrl)
 	if err != nil {
+		log.Printf("failed to connect to database: %s", err)
 		http.Error(w, "failed to connect to database", http.StatusInternalServerError)
 		return
 	}
 	defer dbConn.Close()
 
 	duration := time.Duration(req.ValidFor) * time.Minute
-	username, password, err := grant.Grant(r.Context(), dbConn, req.UserIdentification, duration)
+	username, password, err := grant.Grant(r.Context(), dbConn, req.UserIdentification, duration, req.Tables, req.Actions)
 	if err != nil {
+		log.Printf("failed to grant acces: %s", err)
 		http.Error(w, "failed to grant access", http.StatusInternalServerError)
 		return
 	}

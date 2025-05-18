@@ -1,0 +1,34 @@
+services:
+  db:
+    image: postgres:17.5
+    container_name: accessbot_db
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - accessbot-net
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: accessbot_app
+    depends_on:
+      - db
+    environment:
+      DB_URL: postgres://admin:secret@db:5432/postgres?sslmode=disable
+    ports:
+      - "8080:8080"
+    networks:
+      - accessbot-net
+
+volumes:
+  pgdata:
+
+networks:
+  accessbot-net:

@@ -6,7 +6,10 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
+
+	_ "github.com/lib/pq"
 )
 
 func randomPassword(size int) (string, error) {
@@ -18,7 +21,7 @@ func randomPassword(size int) (string, error) {
 	return hex.EncodeToString(bytes), nil
 }
 
-func Grant(ctx context.Context, db *sql.DB, name string, validFor time.Duration) (string, string, error) {
+func Grant(ctx context.Context, db *sql.DB, name string, validFor time.Duration, tables, actions []string) (string, string, error) {
 	password, err := randomPassword(10)
 	if err != nil {
 		return "", "", err
@@ -40,9 +43,11 @@ func Grant(ctx context.Context, db *sql.DB, name string, validFor time.Duration)
 		return "", "", err
 	}
 
-	grant := fmt.Sprintf(`GRANT %s TO %s`, username, username)
-	if _, err := tx.ExecContext(ctx, grant); err != nil {
-		return "", "", err
+	for _, table := range tables {
+		grant := fmt.Sprintf(`GRANT %s ON %s TO %s`, strings.ToUpper(strings.Join(actions, ", ")), table, username)
+		if _, err := tx.ExecContext(ctx, grant); err != nil {
+			return "", "", fmt.Errorf("failed to grant on %s: %w", table, err)
+		}
 	}
 
 	if err := tx.Commit(); err != nil {
